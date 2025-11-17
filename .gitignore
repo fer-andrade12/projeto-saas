@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+backend/dist/
+frontend/dist/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+tests/selenium/screenshots/
+tests/selenium/node_modules/
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# Temporary files
+tmp/
+*.tmp
+*.bak
+.backup
+tmp_*.json

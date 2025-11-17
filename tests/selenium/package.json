@@ -1,0 +1,21 @@
+{
+  "name": "saas-campaign-selenium-tests",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Selenium E2E tests for SaaS Campaign app",
+  "scripts": {
+    "test": "TS_NODE_TRANSPILE_ONLY=true mocha --timeout 60000 --require ts-node/register 'src/**/*.spec.ts'",
+    "test:js": "mocha --timeout 60000 'src/**/*.spec.js'"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.10",
+    "axios": "^1.7.7",
+    "chai": "^4.4.1",
+    "chromedriver": "^129.0.0",
+    "mocha": "^10.7.3",
+    "selenium-webdriver": "^4.25.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

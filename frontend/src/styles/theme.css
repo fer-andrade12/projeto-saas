@@ -1,0 +1,9 @@
+:root{
+  --purple:#6a1b9a;
+  --bg-dark:#0b0b0d;
+}
+body{
+  background: linear-gradient(180deg, var(--bg-dark), #1a1a1d);
+  color: #fff;
+}
+.card{background:#1f1b27;border-color:#2a2235}

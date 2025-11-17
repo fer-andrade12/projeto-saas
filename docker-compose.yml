@@ -1,0 +1,79 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: saas
+    ports:
+      - '3307:3306'
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./scripts/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+
+  backend:
+    build: ./backend
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASS=root
+      - DB_NAME=saas
+      - APP_URL=http://nginx:8080
+    depends_on:
+      - mysql
+      - redis
+
+  frontend:
+    build: ./frontend
+    ports:
+      - '5173:5173'
+    environment:
+      - DANGEROUSLY_DISABLE_HOST_CHECK=true
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - '8080:8080'
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    ports:
+      - '4444:4444'
+      - '7900:7900'
+    shm_size: 2gb
+
+  tests:
+    image: node:18
+    working_dir: /work
+    volumes:
+      - ./tests/selenium:/work
+    environment:
+      - SELENIUM_REMOTE_URL=http://selenium:4444/wd/hub
+      - FRONT_URL=http://nginx:8080
+      - API_URL=http://backend:3000/api/v1
+      - HEADLESS=true
+    depends_on:
+      - selenium
+      - nginx
+      - backend
+    command: bash -c "npm install && npm test"
+    profiles:
+      - test
+
+volumes:
+  db_data:
