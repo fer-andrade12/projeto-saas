@@ -25,11 +25,11 @@ export default function Login() {
       const { accessToken, refreshToken } = res.data
       localStorage.setItem('accessToken', accessToken)
       localStorage.setItem('refreshToken', refreshToken)
-      navigate('/dashboard', { replace: true })
+      // Usar window.location para forçar reload completo e re-renderizar App com novo token
+      window.location.href = '/dashboard'
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'Login failed'
       setError(Array.isArray(msg) ? msg.join(', ') : String(msg))
-    } finally {
       setLoading(false)
     }
   }

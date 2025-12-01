@@ -1,454 +1,559 @@
-import React, { useEffect, useState } from 'react'
-import api from '../api/api'
-import { Container, Card, Row, Col, Button, Alert, Spinner, Form, Modal, Table, Badge } from 'react-bootstrap'
+import React, { useState, useEffect } from 'react';
+import { Card, Button, Modal, Input, Select, Badge, Alert, TextArea } from '../components/ui';
+import { useForm } from '../hooks/useForm';
+import api from '../api/api';
+import './Plans.css';
 
-export default function Plans() {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [msg, setMsg] = useState<string | null>(null)
-  const [plans, setPlans] = useState<any[]>([])
-  const [userRole, setUserRole] = useState<string>('')
-  
-  // Modal state
-  const [showModal, setShowModal] = useState(false)
-  const [editingPlan, setEditingPlan] = useState<any>(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    type: 'basic',
-    price: '',
-    billing_period: 'monthly',
-    description: '',
-    max_campaigns: '',
-    max_customers: '',
-    max_emails_per_month: ''
-  })
+interface Plan {
+  id: number;
+  name: string;
+  type: string;
+  price: number;
+  billing_period: string;
+  description: string;
+  max_campaigns: number | null;
+  max_customers: number | null;
+  max_emails_per_month: number | null;
+  active: boolean;
+  trial_days: number;
+  features: string[];
+}
 
-  async function load() {
-    setLoading(true)
-    setMsg(null); setError(null)
+interface PlanFormData {
+  name: string;
+  type: string;
+  price: string;
+  billing_period: string;
+  description: string;
+  max_campaigns: string;
+  max_customers: string;
+  max_emails_per_month: string;
+  trial_days: string;
+  features: string;
+  active: boolean;
+}
+
+const Plans: React.FC = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
+  const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [userRole, setUserRole] = useState<string>('');
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchUserRoleAndPlans = async () => {
+      setIsLoading(true);
+      try {
+        const res = await api.get('/auth/me');
+        const role = res.data?.role || 'company';
+        
+        if (isMounted) {
+          setUserRole(role);
+        }
+
+        const endpoint = role === 'super_admin' ? '/plans/admin/all' : '/plans';
+        const response = await api.get(endpoint);
+        
+        if (isMounted) {
+          setPlans(response.data || []);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar planos:', error);
+        if (isMounted) {
+          setPlans([]);
+          setUserRole('company');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchUserRoleAndPlans();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const refetch = async () => {
+    setIsLoading(true);
     try {
-      // Get user info to check role
-      const userInfo = await api.get('/auth/me')
-      const role = userInfo.data?.role || 'company'
-      setUserRole(role)
-
-      // Load plans based on role
-      const endpoint = role === 'super_admin' ? '/plans/admin/all' : '/plans'
-      const res = await api.get(endpoint)
-      setPlans(res.data || [])
-    } catch (e: any) {
-      const m = e?.response?.data?.message || 'Failed to load plans'
-      setError(Array.isArray(m) ? m.join(', ') : String(m))
-    } finally { 
-      setLoading(false) 
+      const endpoint = userRole === 'super_admin' ? '/plans/admin/all' : '/plans';
+      const response = await api.get(endpoint);
+      setPlans(response.data || []);
+    } catch (error) {
+      console.error('Erro ao carregar planos:', error);
+      setPlans([]);
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
 
-  useEffect(() => { load() }, [])
+  const validatePlan = (values: PlanFormData) => {
+    const errors: Record<string, string> = {};
 
-  const openCreateModal = () => {
-    setEditingPlan(null)
-    setFormData({
+    if (!values.name || values.name.length < 3) {
+      errors.name = 'Nome deve ter no mínimo 3 caracteres';
+    }
+
+    if (!values.description) {
+      errors.description = 'Descrição é obrigatória';
+    }
+
+    if (!values.price || Number(values.price) < 0) {
+      errors.price = 'Preço deve ser maior ou igual a zero';
+    }
+
+    if (values.max_campaigns && Number(values.max_campaigns) <= 0) {
+      errors.max_campaigns = 'Limite de campanhas deve ser maior que zero';
+    }
+
+    if (values.max_customers && Number(values.max_customers) <= 0) {
+      errors.max_customers = 'Limite de clientes deve ser maior que zero';
+    }
+
+    if (values.max_emails_per_month && Number(values.max_emails_per_month) <= 0) {
+      errors.max_emails_per_month = 'Limite de emails deve ser maior que zero';
+    }
+
+    return errors;
+  };
+
+  const { values, errors, isSubmitting, handleChange, handleSubmit, resetForm, setValues } = useForm<PlanFormData>({
+    initialValues: {
       name: '',
       type: 'basic',
-      price: '',
+      price: '0',
       billing_period: 'monthly',
       description: '',
       max_campaigns: '',
       max_customers: '',
-      max_emails_per_month: ''
-    })
-    setShowModal(true)
-  }
+      max_emails_per_month: '',
+      trial_days: '0',
+      features: '',
+      active: true,
+    },
+    validate: validatePlan,
+    onSubmit: async (formValues) => {
+      try {
+        const payload: any = {
+          name: formValues.name,
+          type: formValues.type,
+          price: Number(formValues.price),
+          billing_period: formValues.billing_period,
+          description: formValues.description,
+          trial_days: Number(formValues.trial_days),
+          active: formValues.active,
+        };
 
-  const openEditModal = (plan: any) => {
-    setEditingPlan(plan)
-    setFormData({
-      name: plan.name || '',
-      type: plan.type || 'basic',
-      price: plan.price || '',
-      billing_period: plan.billing_period || 'monthly',
-      description: plan.description || '',
-      max_campaigns: plan.max_campaigns || '',
-      max_customers: plan.max_customers || '',
-      max_emails_per_month: plan.max_emails_per_month || ''
-    })
-    setShowModal(true)
-  }
+        if (formValues.max_campaigns) payload.max_campaigns = Number(formValues.max_campaigns);
+        if (formValues.max_customers) payload.max_customers = Number(formValues.max_customers);
+        if (formValues.max_emails_per_month) payload.max_emails_per_month = Number(formValues.max_emails_per_month);
+        
+        if (formValues.features) {
+          payload.features = formValues.features.split('\n').filter(f => f.trim());
+        }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setMsg(null); setError(null)
-    
-    try {
-      const payload = {
-        ...formData,
-        price: parseFloat(formData.price) || 0,
-        max_campaigns: formData.max_campaigns ? parseInt(formData.max_campaigns) : null,
-        max_customers: formData.max_customers ? parseInt(formData.max_customers) : null,
-        max_emails_per_month: formData.max_emails_per_month ? parseInt(formData.max_emails_per_month) : null
+        if (editingPlan) {
+          await api.put(`/plans/admin/${editingPlan.id}`, payload);
+          setAlert({ type: 'success', message: 'Plano atualizado com sucesso!' });
+        } else {
+          await api.post('/plans/admin', payload);
+          setAlert({ type: 'success', message: 'Plano criado com sucesso!' });
+        }
+        closeModal();
+        refetch();
+      } catch (error: any) {
+        setAlert({ type: 'error', message: error.response?.data?.message || 'Erro ao salvar plano' });
       }
+    },
+  });
 
-      if (editingPlan) {
-        await api.put(`/plans/admin/${editingPlan.id}`, payload)
-        setMsg('Plano atualizado com sucesso!')
-      } else {
-        await api.post('/plans/admin', payload)
-        setMsg('Plano criado com sucesso!')
-      }
-      
-      setShowModal(false)
-      await load()
-    } catch (e: any) {
-      const m = e?.response?.data?.message || 'Failed to save plan'
-      setError(Array.isArray(m) ? m.join(', ') : String(m))
+  const openModal = (plan?: Plan) => {
+    if (plan) {
+      setEditingPlan(plan);
+      setValues({
+        name: plan.name,
+        type: plan.type,
+        price: plan.price.toString(),
+        billing_period: plan.billing_period,
+        description: plan.description,
+        max_campaigns: plan.max_campaigns?.toString() || '',
+        max_customers: plan.max_customers?.toString() || '',
+        max_emails_per_month: plan.max_emails_per_month?.toString() || '',
+        trial_days: plan.trial_days?.toString() || '0',
+        features: plan.features?.join('\n') || '',
+        active: plan.active,
+      });
+    } else {
+      setEditingPlan(null);
+      resetForm();
     }
-  }
+    setIsModalOpen(true);
+  };
 
-  const togglePlanStatus = async (planId: number) => {
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingPlan(null);
+    resetForm();
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Tem certeza que deseja excluir este plano?')) return;
+
     try {
-      setMsg(null); setError(null)
-      await api.put(`/plans/admin/${planId}/toggle`)
-      setMsg('Status do plano alterado!')
-      await load()
-    } catch (e: any) {
-      const m = e?.response?.data?.message || 'Failed to toggle plan'
-      setError(Array.isArray(m) ? m.join(', ') : String(m))
+      await api.delete(`/plans/admin/${id}`);
+      setAlert({ type: 'success', message: 'Plano excluído com sucesso!' });
+      refetch();
+    } catch (error: any) {
+      setAlert({ type: 'error', message: error.response?.data?.message || 'Erro ao excluir plano' });
     }
-  }
+  };
 
-  const deletePlan = async (planId: number) => {
-    if (!confirm('Tem certeza que deseja deletar este plano?')) return
-    
+  const handleToggleStatus = async (plan: Plan) => {
     try {
-      setMsg(null); setError(null)
-      await api.delete(`/plans/admin/${planId}`)
-      setMsg('Plano deletado com sucesso!')
-      await load()
-    } catch (e: any) {
-      const m = e?.response?.data?.message || 'Failed to delete plan'
-      setError(Array.isArray(m) ? m.join(', ') : String(m))
+      await api.put(`/plans/admin/${plan.id}/toggle`);
+      setAlert({ type: 'success', message: `Plano ${!plan.active ? 'ativado' : 'desativado'} com sucesso!` });
+      refetch();
+    } catch (error: any) {
+      setAlert({ type: 'error', message: error.response?.data?.message || 'Erro ao alterar status' });
     }
-  }
+  };
 
-  const getBillingPeriodLabel = (period: string) => {
-    const labels: any = {
+  const getPlanTypeLabel = (type: string) => {
+    const types: Record<string, string> = {
+      basic: 'Básico',
+      professional: 'Profissional',
+      enterprise: 'Enterprise',
+    };
+    return types[type] || type;
+  };
+
+  const getPlanTypeVariant = (type: string): any => {
+    const variants: Record<string, any> = {
+      basic: 'info',
+      professional: 'primary',
+      enterprise: 'success',
+    };
+    return variants[type] || 'secondary';
+  };
+
+  const getBillingLabel = (period: string) => {
+    const labels: Record<string, string> = {
       monthly: 'Mensal',
       quarterly: 'Trimestral',
-      yearly: 'Anual'
-    }
-    return labels[period] || period
-  }
+      semiannual: 'Semestral',
+      annual: 'Anual',
+    };
+    return labels[period] || period;
+  };
 
-  if (loading) {
-    return (
-      <Container className="py-5 text-center">
-        <Spinner animation="border" className="text-white" />
-        <p className="mt-2 text-white-50">Carregando planos...</p>
-      </Container>
-    )
-  }
+  const formatPrice = (price: number, period: string) => {
+    if (price === 0) return 'Grátis';
+    return `R$ ${price.toFixed(2)}/${getBillingLabel(period)}`;
+  };
 
-  // Super Admin View
-  if (userRole === 'super_admin') {
-    return (
-      <Container className="py-5">
-        <div className="d-flex justify-content-between align-items-center mb-4">
-          <div>
-            <h2 className="fw-bold text-white mb-2">
-              <i className="bi bi-box-seam me-2"></i>
-              Gerenciar Planos
-            </h2>
-            <p className="text-white-50">Configure planos de assinatura para suas empresas</p>
-          </div>
-          <Button variant="primary" size="lg" onClick={openCreateModal}>
-            <i className="bi bi-plus-circle me-2"></i>
-            Novo Plano
-          </Button>
-        </div>
-
-        {msg && <Alert variant="success" dismissible onClose={() => setMsg(null)}>{msg}</Alert>}
-        {error && <Alert variant="danger" dismissible onClose={() => setError(null)}>{error}</Alert>}
-
-        <Card className="shadow-lg">
-          <Card.Body className="p-0">
-            <Table responsive hover className="mb-0">
-              <thead className="bg-light">
-                <tr>
-                  <th>Nome</th>
-                  <th>Tipo</th>
-                  <th>Preço</th>
-                  <th>Período</th>
-                  <th>Limites</th>
-                  <th>Status</th>
-                  <th className="text-end">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plans.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="text-center text-muted py-4">
-                      <i className="bi bi-inbox fs-1 opacity-50 d-block mb-2"></i>
-                      Nenhum plano cadastrado
-                    </td>
-                  </tr>
-                ) : (
-                  plans.map(plan => (
-                    <tr key={plan.id}>
-                      <td className="fw-bold">{plan.name}</td>
-                      <td>
-                        <Badge bg="secondary">{plan.type}</Badge>
-                      </td>
-                      <td className="fw-bold text-success">R$ {plan.price}</td>
-                      <td>{getBillingPeriodLabel(plan.billing_period)}</td>
-                      <td className="small text-muted">
-                        {plan.max_campaigns && <div>📊 {plan.max_campaigns} campanhas</div>}
-                        {plan.max_customers && <div>👥 {plan.max_customers} clientes</div>}
-                        {plan.max_emails_per_month && <div>📧 {plan.max_emails_per_month} emails/mês</div>}
-                        {!plan.max_campaigns && !plan.max_customers && !plan.max_emails_per_month && '—'}
-                      </td>
-                      <td>
-                        <Badge bg={plan.active ? 'success' : 'secondary'}>
-                          {plan.active ? 'Ativo' : 'Inativo'}
-                        </Badge>
-                      </td>
-                      <td className="text-end">
-                        <Button 
-                          variant="outline-primary" 
-                          size="sm" 
-                          className="me-2"
-                          onClick={() => openEditModal(plan)}
-                        >
-                          <i className="bi bi-pencil"></i>
-                        </Button>
-                        <Button 
-                          variant={plan.active ? 'outline-warning' : 'outline-success'} 
-                          size="sm"
-                          className="me-2"
-                          onClick={() => togglePlanStatus(plan.id)}
-                        >
-                          <i className={`bi bi-${plan.active ? 'pause' : 'play'}-circle`}></i>
-                        </Button>
-                        <Button 
-                          variant="outline-danger" 
-                          size="sm"
-                          onClick={() => deletePlan(plan.id)}
-                        >
-                          <i className="bi bi-trash"></i>
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </Table>
-          </Card.Body>
-        </Card>
-
-        {/* Modal for Create/Edit */}
-        <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
-          <Modal.Header closeButton>
-            <Modal.Title>
-              {editingPlan ? 'Editar Plano' : 'Novo Plano'}
-            </Modal.Title>
-          </Modal.Header>
-          <Form onSubmit={handleSubmit}>
-            <Modal.Body>
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Nome do Plano *</Form.Label>
-                    <Form.Control
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={e => setFormData({...formData, name: e.target.value})}
-                      placeholder="Ex: Plano Básico"
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Tipo *</Form.Label>
-                    <Form.Select
-                      required
-                      value={formData.type}
-                      onChange={e => setFormData({...formData, type: e.target.value})}
-                    >
-                      <option value="basic">Básico</option>
-                      <option value="standard">Padrão</option>
-                      <option value="premium">Premium</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Row>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Preço (R$) *</Form.Label>
-                    <Form.Control
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      required
-                      value={formData.price}
-                      onChange={e => setFormData({...formData, price: e.target.value})}
-                      placeholder="0.00"
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={6}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Período de Cobrança *</Form.Label>
-                    <Form.Select
-                      required
-                      value={formData.billing_period}
-                      onChange={e => setFormData({...formData, billing_period: e.target.value})}
-                    >
-                      <option value="monthly">Mensal</option>
-                      <option value="quarterly">Trimestral</option>
-                      <option value="yearly">Anual</option>
-                    </Form.Select>
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Form.Group className="mb-3">
-                <Form.Label>Descrição</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  value={formData.description}
-                  onChange={e => setFormData({...formData, description: e.target.value})}
-                  placeholder="Descreva os benefícios deste plano..."
-                />
-              </Form.Group>
-
-              <hr />
-              <h6 className="text-muted mb-3">Limites (opcional)</h6>
-
-              <Row>
-                <Col md={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Máx. Campanhas</Form.Label>
-                    <Form.Control
-                      type="number"
-                      min="0"
-                      value={formData.max_campaigns}
-                      onChange={e => setFormData({...formData, max_campaigns: e.target.value})}
-                      placeholder="Ilimitado"
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Máx. Clientes</Form.Label>
-                    <Form.Control
-                      type="number"
-                      min="0"
-                      value={formData.max_customers}
-                      onChange={e => setFormData({...formData, max_customers: e.target.value})}
-                      placeholder="Ilimitado"
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label>Máx. Emails/Mês</Form.Label>
-                    <Form.Control
-                      type="number"
-                      min="0"
-                      value={formData.max_emails_per_month}
-                      onChange={e => setFormData({...formData, max_emails_per_month: e.target.value})}
-                      placeholder="Ilimitado"
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button variant="secondary" onClick={() => setShowModal(false)}>
-                Cancelar
-              </Button>
-              <Button variant="primary" type="submit">
-                <i className="bi bi-check-circle me-2"></i>
-                {editingPlan ? 'Atualizar' : 'Criar'} Plano
-              </Button>
-            </Modal.Footer>
-          </Form>
-        </Modal>
-      </Container>
-    )
-  }
-
-  // Company View (original simplified view)
   return (
-    <Container className="py-5">
-      <div className="mb-5">
-        <h2 className="fw-bold text-white mb-2">
-          <i className="bi bi-box-seam me-2"></i>
-          Planos Disponíveis
-        </h2>
-        <p className="text-white-50">Escolha o melhor plano para sua empresa</p>
-      </div>
-
-      {msg && <Alert variant="success" dismissible onClose={() => setMsg(null)}>{msg}</Alert>}
-      {error && <Alert variant="danger" dismissible onClose={() => setError(null)}>{error}</Alert>}
-
-      {plans.length === 0 ? (
-        <Alert variant="warning">Nenhum plano disponível no momento.</Alert>
-      ) : (
-        <Row className="g-4">
-          {plans.map(plan => (
-            <Col md={4} key={plan.id}>
-              <Card className="h-100 shadow-lg hover-shadow">
-                <Card.Body className="d-flex flex-column">
-                  <div className="text-center mb-3">
-                    <Badge bg="primary" className="mb-3">{plan.type.toUpperCase()}</Badge>
-                    <h4 className="fw-bold">{plan.name}</h4>
-                    <div className="display-6 fw-bold text-primary my-3">
-                      R$ {plan.price}
-                      <small className="fs-6 text-muted d-block">
-                        {getBillingPeriodLabel(plan.billing_period)}
-                      </small>
-                    </div>
-                  </div>
-                  
-                  {plan.description && (
-                    <p className="text-muted mb-3">{plan.description}</p>
-                  )}
-
-                  <div className="mb-3">
-                    {plan.max_campaigns && (
-                      <div className="d-flex align-items-center mb-2">
-                        <i className="bi bi-check-circle-fill text-success me-2"></i>
-                        <span>Até {plan.max_campaigns} campanhas</span>
-                      </div>
-                    )}
-                    {plan.max_customers && (
-                      <div className="d-flex align-items-center mb-2">
-                        <i className="bi bi-check-circle-fill text-success me-2"></i>
-                        <span>Até {plan.max_customers} clientes</span>
-                      </div>
-                    )}
-                    {plan.max_emails_per_month && (
-                      <div className="d-flex align-items-center mb-2">
-                        <i className="bi bi-check-circle-fill text-success me-2"></i>
-                        <span>{plan.max_emails_per_month} emails por mês</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <Button variant="primary" size="lg" className="mt-auto w-100">
-                    Escolher Plano
-                  </Button>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+    <div className="plans-page">
+      {alert && (
+        <Alert
+          type={alert.type}
+          message={alert.message}
+          onClose={() => setAlert(null)}
+        />
       )}
-    </Container>
-  )
-}
+
+      <Card
+        title="Gerenciar Planos de Assinatura"
+        subtitle={`${plans.length} plano(s) disponível(is)`}
+        actions={
+          userRole === 'super_admin' && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<span>➕</span>}
+              onClick={() => openModal()}
+            >
+              Novo Plano
+            </Button>
+          )
+        }
+      >
+        {isLoading ? (
+          <div className="loading-state">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Carregando...</span>
+            </div>
+          </div>
+        ) : plans.length === 0 ? (
+          <div className="empty-state">
+            <span className="empty-icon">📦</span>
+            <h3>Nenhum plano cadastrado</h3>
+            <p>Crie planos de assinatura para sua plataforma</p>
+          </div>
+        ) : (
+          <div className="plans-grid">
+            {plans.map((plan: Plan) => (
+              <div key={plan.id} className={`plan-card ${!plan.active ? 'plan-inactive' : ''}`}>
+                <div className="plan-header">
+                  <div className="plan-type">
+                    <Badge variant={getPlanTypeVariant(plan.type)}>
+                      {getPlanTypeLabel(plan.type)}
+                    </Badge>
+                    <Badge variant={plan.active ? 'success' : 'danger'} size="sm">
+                      {plan.active ? 'Ativo' : 'Inativo'}
+                    </Badge>
+                  </div>
+                  <h3 className="plan-name">{plan.name}</h3>
+                  <div className="plan-price">
+                    {plan.price === 0 ? (
+                      <span className="price-free">GRÁTIS</span>
+                    ) : (
+                      <>
+                        <span className="price-currency">R$</span>
+                        <span className="price-value">{plan.price.toFixed(2)}</span>
+                        <span className="price-period">/{getBillingLabel(plan.billing_period)}</span>
+                      </>
+                    )}
+                  </div>
+                  {plan.trial_days > 0 && (
+                    <div className="plan-trial">
+                      🎁 {plan.trial_days} dias grátis
+                    </div>
+                  )}
+                </div>
+
+                <div className="plan-description">
+                  <p>{plan.description}</p>
+                </div>
+
+                <div className="plan-limits">
+                  <h4>Limites do Plano</h4>
+                  <ul>
+                    <li>
+                      <span className="limit-icon">🎯</span>
+                      <span className="limit-label">Campanhas:</span>
+                      <span className="limit-value">{plan.max_campaigns || '∞'}</span>
+                    </li>
+                    <li>
+                      <span className="limit-icon">👥</span>
+                      <span className="limit-label">Clientes:</span>
+                      <span className="limit-value">{plan.max_customers || '∞'}</span>
+                    </li>
+                    <li>
+                      <span className="limit-icon">📧</span>
+                      <span className="limit-label">Emails/mês:</span>
+                      <span className="limit-value">{plan.max_emails_per_month || '∞'}</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {plan.features && plan.features.length > 0 && (
+                  <div className="plan-features">
+                    <h4>Recursos Inclusos</h4>
+                    <ul>
+                      {plan.features.map((feature, index) => (
+                        <li key={index}>
+                          <span className="feature-icon">✓</span>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {userRole === 'super_admin' && (
+                  <div className="plan-actions">
+                    <Button
+                      variant={plan.active ? 'warning' : 'success'}
+                      size="sm"
+                      onClick={() => handleToggleStatus(plan)}
+                      title={plan.active ? 'Desativar' : 'Ativar'}
+                    >
+                      {plan.active ? '⏸️ Desativar' : '▶️ Ativar'}
+                    </Button>
+                    <Button
+                      variant="info"
+                      size="sm"
+                      onClick={() => openModal(plan)}
+                      title="Editar"
+                    >
+                      ✏️ Editar
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleDelete(plan.id)}
+                      title="Excluir"
+                    >
+                      🗑️ Excluir
+                    </Button>
+                  </div>
+                )}
+
+                {userRole !== 'super_admin' && (
+                  <div className="plan-actions">
+                    <Button variant="primary" size="md" style={{ width: '100%' }}>
+                      Assinar Plano
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Modal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={editingPlan ? 'Editar Plano' : 'Novo Plano'}
+        size="xl"
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeModal}>
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSubmit}
+              isLoading={isSubmitting}
+            >
+              {editingPlan ? 'Atualizar' : 'Criar Plano'}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleSubmit}>
+          <div className="form-grid">
+            <Input
+              label="Nome do Plano *"
+              value={values.name}
+              onChange={(e) => handleChange('name', e.target.value)}
+              error={errors.name}
+              placeholder="Plano Profissional"
+            />
+
+            <Select
+              label="Tipo de Plano *"
+              value={values.type}
+              onChange={(e) => handleChange('type', e.target.value)}
+              options={[
+                { value: 'basic', label: 'Básico' },
+                { value: 'professional', label: 'Profissional' },
+                { value: 'enterprise', label: 'Enterprise' },
+              ]}
+            />
+
+            <Input
+              label="Preço (R$) *"
+              type="number"
+              step="0.01"
+              min="0"
+              value={values.price}
+              onChange={(e) => handleChange('price', e.target.value)}
+              error={errors.price}
+              placeholder="99.90"
+            />
+
+            <Select
+              label="Período de Cobrança *"
+              value={values.billing_period}
+              onChange={(e) => handleChange('billing_period', e.target.value)}
+              options={[
+                { value: 'monthly', label: 'Mensal' },
+                { value: 'quarterly', label: 'Trimestral' },
+                { value: 'semiannual', label: 'Semestral' },
+                { value: 'annual', label: 'Anual' },
+              ]}
+            />
+
+            <Input
+              label="Dias de Teste Grátis"
+              type="number"
+              min="0"
+              value={values.trial_days}
+              onChange={(e) => handleChange('trial_days', e.target.value)}
+              placeholder="7"
+              hint="0 = sem período de teste"
+            />
+
+            <div style={{ gridColumn: '1 / -1' }}>
+              <TextArea
+                label="Descrição *"
+                value={values.description}
+                onChange={(e) => handleChange('description', e.target.value)}
+                error={errors.description}
+                placeholder="Descreva o plano e seus benefícios..."
+                rows={3}
+              />
+            </div>
+
+            <h4 style={{ gridColumn: '1 / -1', margin: '16px 0 0', fontSize: '1.1rem', fontWeight: 600 }}>
+              Limites do Plano
+            </h4>
+
+            <Input
+              label="Máximo de Campanhas"
+              type="number"
+              min="1"
+              value={values.max_campaigns}
+              onChange={(e) => handleChange('max_campaigns', e.target.value)}
+              error={errors.max_campaigns}
+              placeholder="Deixe vazio para ilimitado"
+            />
+
+            <Input
+              label="Máximo de Clientes"
+              type="number"
+              min="1"
+              value={values.max_customers}
+              onChange={(e) => handleChange('max_customers', e.target.value)}
+              error={errors.max_customers}
+              placeholder="Deixe vazio para ilimitado"
+            />
+
+            <Input
+              label="Máximo de Emails/Mês"
+              type="number"
+              min="1"
+              value={values.max_emails_per_month}
+              onChange={(e) => handleChange('max_emails_per_month', e.target.value)}
+              error={errors.max_emails_per_month}
+              placeholder="Deixe vazio para ilimitado"
+            />
+
+            <div style={{ gridColumn: '1 / -1' }}>
+              <TextArea
+                label="Recursos (um por linha)"
+                value={values.features}
+                onChange={(e) => handleChange('features', e.target.value)}
+                placeholder="Suporte prioritário&#10;Relatórios avançados&#10;API personalizada"
+                rows={5}
+                hint="Digite um recurso por linha"
+              />
+            </div>
+
+            <div className="checkbox-field" style={{ gridColumn: '1 / -1' }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={values.active}
+                  onChange={(e) => handleChange('active', e.target.checked)}
+                />
+                <span style={{ marginLeft: '8px' }}>Plano ativo (disponível para assinatura)</span>
+              </label>
+            </div>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+};
+
+export default Plans;

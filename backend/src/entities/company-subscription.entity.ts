@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
 import { Company } from './company.entity';
 import { SubscriptionPlan } from './subscription-plan.entity';
 
@@ -28,6 +29,7 @@ export class CompanySubscription {
   @JoinColumn({ name: 'plan_id' })
   plan?: SubscriptionPlan;
 
+  @ApiProperty({ enum: SubscriptionStatus, enumName: 'SubscriptionStatus' })
   @Column({ type: 'enum', enum: SubscriptionStatus, default: SubscriptionStatus.ACTIVE })
   status!: SubscriptionStatus;
 

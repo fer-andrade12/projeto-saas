@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
 
 export enum PlanType {
   BASIC = 'basic',
@@ -20,12 +21,14 @@ export class SubscriptionPlan {
   @Column({ length: 100 })
   name!: string;
 
+  @ApiProperty({ enum: PlanType, enumName: 'PlanType' })
   @Column({ type: 'enum', enum: PlanType })
   type!: PlanType;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   price!: string; // R$ 20.00, 50.00, 100.00
 
+  @ApiProperty({ enum: BillingPeriod, enumName: 'BillingPeriod' })
   @Column({ 
     type: 'enum', 
     enum: BillingPeriod, 

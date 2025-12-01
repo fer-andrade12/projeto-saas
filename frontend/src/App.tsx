@@ -5,10 +5,14 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import SignUp from './pages/SignUp'
 import Campaigns from './pages/Campaigns'
+import CampaignsSimple from './pages/CampaignsSimple'
 import Customers from './pages/Customers'
 import ForgotPassword from './pages/ForgotPassword'
 import SuperAdmin from './pages/SuperAdmin'
 import Plans from './pages/Plans'
+import PlansSimple from './pages/PlansSimple'
+import PlansNew from './pages/PlansNew'
+import './App.css'
 
 export default function App() {
   const navigate = useNavigate()
@@ -68,7 +72,10 @@ export default function App() {
                 {/* Super Admin Menu */}
                 {role === 'super_admin' && !impersonating && (
                   <>
+                    <Nav.Link as={Link} to="/dashboard">Dashboard</Nav.Link>
                     <Nav.Link as={Link} to="/super-admin">Super Admin</Nav.Link>
+                    <Nav.Link as={Link} to="/campaigns">Campanhas</Nav.Link>
+                    <Nav.Link as={Link} to="/customers">Clientes</Nav.Link>
                     <Nav.Link as={Link} to="/plans">Planos</Nav.Link>
                   </>
                 )}
@@ -102,9 +109,11 @@ export default function App() {
           <Route path="/forgot" element={<PublicOnlyRoute><ForgotPassword /></PublicOnlyRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/campaigns" element={<ProtectedRoute><Campaigns /></ProtectedRoute>} />
+          <Route path="/campaigns-simple" element={<ProtectedRoute><CampaignsSimple /></ProtectedRoute>} />
           <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
           <Route path="/super-admin" element={<ProtectedRoute><RequireRole roles={["super_admin"]}><SuperAdmin /></RequireRole></ProtectedRoute>} />
-          <Route path="/plans" element={<ProtectedRoute><RequireRole roles={["company","super_admin"]}><Plans /></RequireRole></ProtectedRoute>} />
+          <Route path="/plans" element={<ProtectedRoute><RequireRole roles={["company","super_admin"]}><PlansSimple /></RequireRole></ProtectedRoute>} />
+          <Route path="/plans-new" element={<ProtectedRoute><RequireRole roles={["company","super_admin"]}><PlansNew /></RequireRole></ProtectedRoute>} />
         </Routes>
       </Container>
     </>

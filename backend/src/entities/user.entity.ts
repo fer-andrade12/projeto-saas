@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
 
 export enum UserRole {
   SUPER_ADMIN = 'super_admin',
@@ -22,6 +23,7 @@ export class User {
   @Column({ default: true })
   active!: boolean;
 
+  @ApiProperty({ enum: UserRole, enumName: 'UserRole' })
   @Column({ type: 'enum', enum: UserRole, default: UserRole.COMPANY })
   role!: UserRole;
 

@@ -1,4 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
 import { Company } from './company.entity';
 
 export enum PaymentStatus {
@@ -23,6 +24,7 @@ export class PaymentTransaction {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   amount!: string;
 
+  @ApiProperty({ enum: PaymentStatus, enumName: 'PaymentStatus' })
   @Column({ type: 'enum', enum: PaymentStatus, default: PaymentStatus.PENDING })
   status!: PaymentStatus;
 
